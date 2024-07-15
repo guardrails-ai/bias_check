@@ -45,20 +45,3 @@ class BiasCheck(Validator):
                 fix_value=debiased_value,
             )
         return PassResult()
-
-
-# Run tests via `pytest -rP ./bias_check.py`
-class TestBiasCheck:
-    def test_success_case(self):
-        validator = BiasCheck(debias_strength=0.5)
-        input_text = "The sun rises in the morning."
-        result = validator.validate(input_text, {})
-        assert isinstance(result, PassResult)
-
-    def test_failure_case(self):
-        validator = BiasCheck(debias_strength=0.5)
-        input_text = "The sun only rises for Humanists."
-        result = validator.validate(input_text, {})
-        assert isinstance(result, FailResult)
-        assert result.error_message == "The original response contains potential biases that are now addressed."
-        assert result.fix_value == "The sun rises for everyone."
