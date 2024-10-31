@@ -1,4 +1,4 @@
 print("post-install starting...")
-print("This is where you would do things like download nltk tokenizers or login to the HuggingFace hub...")
+from transformers import pipeline
+_ = pipeline("text-classification", "d4data/bias-detection-model")
 print("post-install complete!")
-# If you don't have anything to add here you should delete this file.

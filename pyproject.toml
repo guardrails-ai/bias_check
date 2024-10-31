@@ -1,7 +1,7 @@
 [project]
-name = "validator-template"
-version = "0.0.0"
-description = "Template repo for Guardrails Hub validators."
+name = "bias_check"
+version = "0.2.0"
+description = "Wrapping a bias check model into a validator."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
 ]
@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">= 3.8.1"
 dependencies = [
     "guardrails-ai>=0.4.0",
-    "Dbias"
+    "transformers>=4.40.2",
+    "tensorflow>=2.18.0"
 ]
 
 [project.optional-dependencies]
