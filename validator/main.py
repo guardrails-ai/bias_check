@@ -46,7 +46,7 @@ class BiasCheck(Validator):
         # There are some spurious loading complaints with TFDistilBert models.
         # See https://discuss.huggingface.co/t/message-some-layers-from-the-model-were-not-used/1972/7
 
-    def validate(self, value: Any, metadata: Dict = None) -> ValidationResult:
+    def validate(self, value: Any, metadata: Optional[Dict] = None) -> ValidationResult:
         """Validates that the text is free from biases related to age, gender, sex, ethnicity, religion, etc."""
         if isinstance(value, str):
             value = [value,]  # Ensure we're always passing lists of strings into the classifier.
