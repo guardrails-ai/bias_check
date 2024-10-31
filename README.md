@@ -16,8 +16,8 @@ This validator can be used to ensure fairness of model output across various dem
 ## Requirements
 
 * Dependencies:
-    - guardrails-ai>=0.4.0
-    - dbias>=0.1.0  
+    - guardrails-ai>=0.5.0
+    - transformers>=4.40
         
 * Dev Dependencies:
     - pytest
@@ -25,7 +25,7 @@ This validator can be used to ensure fairness of model output across various dem
     - ruff
 
 * Foundation model access keys:
-    - Dependent on the use case (rephrase if unclear)   
+    - None (basic HuggingFace hub access)
 
 
 # Installation
@@ -46,8 +46,8 @@ from guardrails.hub import BiasCheck
 from guardrails import Guard
 
 # Setup Guard
-guard = Guard.use(
-    BiasCheck()
+guard = Guard().use(
+    BiasCheck(threshold=0.9, on_fail="exception")
 )
 
 guard.validate("The movie was great!") # Validator passes
