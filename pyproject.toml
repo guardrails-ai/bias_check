@@ -7,11 +7,17 @@ authors = [
 ]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">= 3.8.1"
+requires-python = ">= 3.9"
 dependencies = [
-    "guardrails-ai>=0.4.0",
-    "transformers>=4.40.2",
-    "tensorflow>=2.18.0"
+    "guardrails-ai>=0.5.15",
+    "transformers>=4.37.0",
+    "tf-keras",
+    "spacy[transformers]>=3.6.0",
+    "cached_path>=1.6.0",
+    "sentencepiece",
+    "tensorflow>=2.16.0",
+    #"tensorflow-macos>=2.16.0 ;  platform_system == 'Darwin'",
+    #"tensorflow-metal>=1.0.0 ; platform_system == 'Darwin'"
 ]
 
 [project.optional-dependencies]
