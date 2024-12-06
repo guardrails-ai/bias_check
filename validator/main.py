@@ -13,6 +13,7 @@ from guardrails.validator_base import (
     register_validator,
 )
 from guardrails.types import OnFailAction
+from sentence_splitter import split_text_into_sentences
 from transformers import pipeline
 
 
@@ -37,10 +38,8 @@ class BiasCheck(Validator):
     | Programmatic fix              | The debiased text if bias is detected |
 
     Args:
-        threshold (float): Higher is more likely to allow bias. Lower is more sensitive and more likely to flag biased messages.
-        on_fail (Callable): The policy to enact when a validator fails. If `str`, 
-        must be one of `filter`, `noop`, `fix`, or `exception`. Otherwise, must be a 
-        function that is called when the validator fails.
+        threshold (float): Higher is more likely to allow bias. Lower is more sensitive and more likely to flag biased messages. 
+        on_fail (Callable): The policy to enact when a validator fails. If `str`, must be one of `noop`, `fix`, or `exception`. Otherwise, must be a function that is called when the validator fails.
     """  # noqa
 
     def __init__(
@@ -49,7 +48,7 @@ class BiasCheck(Validator):
         on_fail: Optional[Callable] = None,
     ):
         super().__init__(on_fail=on_fail)
-        valid_on_fail_operations = {"filter", "fix", "noop", "exception"}
+        valid_on_fail_operations = {"fix", "noop", "exception"}
         if isinstance(on_fail, str) and on_fail not in valid_on_fail_operations:
             raise Exception(
                 f"on_fail value ({on_fail}) not in list of allowable operations: {valid_on_fail_operations}"
@@ -128,12 +127,26 @@ class BiasCheck(Validator):
                     if not needs_fix:
                         fix_value.append(text)
                     else:
-                        fix_value.append(self.fix_sentence(text))
+                        # The 'text' is a full paragraph, actually.
+                        # Split it into sentences, evaluate each for bias, and join them
+                        fix_value.append(self.fix_paragraph(text))
             return FailResult(
                 error_message=failure_message,
                 fix_value=" ".join(fix_value) if single_sentence_passed else fix_value,
             )
         return PassResult()
+
+    def fix_paragraph(self, text: str) -> str:
+        """Given a passage of text, split it into sentences, evaluate each for bias,
+        then recombine them and return a new paragraph. May not preserve whitespace
+        between sentences."""
+        sentences = split_text_into_sentences(text, language='en')
+        scores = self._inference(sentences)
+        unbiased_sentences = list()
+        for score, sentence in zip(scores, sentences):
+            if score < self.threshold:
+                unbiased_sentences.append(sentence)
+        return "  ".join(unbiased_sentences)
 
     # This normally will be called by _inference.
     # Remote inference is unsupported for this model on account of the NER.
@@ -149,37 +162,6 @@ class BiasCheck(Validator):
                 # This should never happen:
                 raise Exception("Unexpected prediction label: {}".format(pred['label']))
         return scores
-
-    def fix_sentence(self, sentence: str) -> str:
-        """The original DBias algorithm would brute-force, potentially O(2^n) operation.
-        This performs a similar evaluation, but greedily replaces words instead of
-        trying all combinations. Since the original did not preserve semantics or
-        pragmatics, these will approach something not dissimilar, but they have
-        different theoretical guarantees about proximity to the original."""
-        start_sentence = sentence
-        starting_bias = self._inference_local([sentence,])[0]
-        if starting_bias < self.threshold:
-            # Should we raise an exception here?  Starting under threshold?
-            return start_sentence
-        charged_words = [t.text for t in self.bias_words_detector(sentence).ents]
-        for word_to_replace in charged_words:
-            for _ in range(0, start_sentence.count(word_to_replace)):
-                temp = start_sentence.replace(word_to_replace, "[MASK]", 1)
-                # Generate a bunch of candidate sentences:
-                candidate_sentences = list()
-                for x in self.unmasker(temp):
-                    if x['token'] not in charged_words:
-                        candidate_sentences.append(x['sequence'])
-                # Score them and take the best:
-                scores = self._inference_local(candidate_sentences)
-                best_score, best_text = argmin_pair(scores, candidate_sentences)
-                if best_score < self.threshold:
-                    return best_text
-                elif best_score < starting_bias:
-                    starting_bias = best_score
-                    start_sentence = temp
-        # We've tried changing everything and can't find a good unbiasing.
-        return ""
 
 
 def download_spacy_model():

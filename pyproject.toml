@@ -16,8 +16,7 @@ dependencies = [
     "cached_path>=1.6.0",
     "sentencepiece",
     "tensorflow>=2.16.0",
-    #"tensorflow-macos>=2.16.0 ;  platform_system == 'Darwin'",
-    #"tensorflow-metal>=1.0.0 ; platform_system == 'Darwin'"
+    "sentence-splitter>=1.4"
 ]
 
 [project.optional-dependencies]
