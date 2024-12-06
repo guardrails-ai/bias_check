@@ -17,7 +17,11 @@ This validator can be used to ensure fairness of model output across various dem
 
 * Dependencies:
     - guardrails-ai>=0.5.0
-    - transformers>=4.40
+    - transformers>=4.37
+    - tf-keras
+    - sentencepiece
+    - tensorflow>=2.16
+    - sentence-splitter
         
 * Dev Dependencies:
     - pytest
@@ -50,5 +54,5 @@ guard = Guard().use(
     BiasCheck(threshold=0.9, on_fail="exception")
 )
 
-guard.validate("The movie was great!") # Validator passes
-guard.validate("Why do men always think the movie was great?")  # Validator fails
+guard.validate("The movie was great.") # Validator passes
+guard.validate("Why do men think that movie was great?")  # Validator fails

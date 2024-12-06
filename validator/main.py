@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 from guardrails.validator_base import (
     FailResult,
@@ -7,8 +7,10 @@ from guardrails.validator_base import (
     Validator,
     register_validator,
 )
-
+from guardrails.types import OnFailAction
+from sentence_splitter import split_text_into_sentences
 from transformers import pipeline
+
 
 @register_validator(name="guardrails/bias_check", data_type="string")
 class BiasCheck(Validator):
@@ -23,61 +25,107 @@ class BiasCheck(Validator):
     | Programmatic fix              | The debiased text if bias is detected |
 
     Args:
-        threshold (float): Higher is more likely to allow bias. Lower is more sensitive and more likely to flag biased messages.
-        on_fail (Callable): The policy to enact when a validator fails. If `str`, must be one of `filter`, `noop`, or `exception`. Otherwise, must be a function that is called when the validator fails.
+        threshold (float): Higher is more likely to allow bias. Lower is more sensitive and more likely to flag biased messages. 
+        on_fail (Callable): The policy to enact when a validator fails. If `str`, must be one of `noop`, `fix`, or `exception`. Otherwise, must be a function that is called when the validator fails.
     """  # noqa
 
     def __init__(
         self,
         threshold: float = 0.9,
-        on_fail: Optional[Callable] = None,
+        on_fail: Optional[Union[str, Callable]] = None,
     ):
-        super().__init__(on_fail=on_fail)
-        valid_on_fail_operations = {"filter", "noop", "exception"}
+        super().__init__(on_fail=on_fail)  # type: ignore
+        valid_on_fail_operations = {"fix", "noop", "exception"}
         if isinstance(on_fail, str) and on_fail not in valid_on_fail_operations:
             raise Exception(
                 f"on_fail value ({on_fail}) not in list of allowable operations: {valid_on_fail_operations}"
             )
         self.threshold = threshold
-        self.model = pipeline(
-            'text-classification',
-            model="d4data/bias-detection-model",
-        )
+
         # There are some spurious loading complaints with TFDistilBert models.
         # See https://discuss.huggingface.co/t/message-some-layers-from-the-model-were-not-used/1972/7
+        self.classification_model = pipeline(
+            'text-classification',
+            model="d4data/bias-detection-model",
+            tokenizer="d4data/bias-detection-model",
+        )
 
-    def validate(self, value: Any, metadata: Optional[Dict] = None) -> ValidationResult:
+    def validate(
+            self,
+            value: Union[str, List[str]],
+            metadata: Optional[Dict] = None
+    ) -> ValidationResult:
         """Validates that the text is free from biases related to age, gender, sex, ethnicity, religion, etc."""
+        single_sentence_passed = False
         if isinstance(value, str):
+            single_sentence_passed = True
             value = [value,]  # Ensure we're always passing lists of strings into the classifier.
 
-        classified_examples = self.model(value)
+        scores = self._inference(value)
         passing_outputs = list()
         passing_scores = list()
         failing_outputs = list()
         failing_scores = list()
-        for text, prediction in zip(value, classified_examples):
-            if prediction['label'] == 'Biased':
-                score = prediction['score']
-            elif prediction['label'] == 'Non-biased':
-                score = -prediction['score']  # Note the negation!
-            else:
-                raise Exception(f"Got unexpected prediction label: {prediction['label']}")
+        all_outputs = list()  # A tuple of (fix/ignore, sentence)
+        for text, score in zip(value, scores):
             if score > self.threshold:
                 failing_outputs.append(text)
                 failing_scores.append(score)
             else:
                 passing_outputs.append(text)
                 passing_scores.append(score)
+            all_outputs.append((score > self.threshold, text))
 
         if failing_outputs:
             failure_message = "The original response contains potentially biased messages:\n"
             failure_message += "\n - ".join(failing_outputs)
             message_scores = [str(s) for s in failing_scores]
             failure_message += "\n (Message scores: {})".format(", ".join(message_scores))
-            # Do we need to call the on_fail_method here?
+            # Three paths: noop, exception, fix.
+            # on_fail == NOOP, return only passing passages.
+            # on_fail == FIX, split passages into sentences and drop sentences.
+            # EXCEPTION is handled farther up the stack.
+            if self.on_fail_descriptor != OnFailAction.FIX:
+                fix_value = passing_outputs
+            else:
+                fix_value = list()
+                for needs_fix, text in all_outputs:
+                    if not needs_fix:
+                        fix_value.append(text)
+                    else:
+                        # The 'text' is a full document, passage, or paragraph.
+                        fix_value.append(self.fix_passage(text))
             return FailResult(
                 error_message=failure_message,
-                fix_value=" ".join(passing_outputs),
+                fix_value=" ".join(fix_value) if single_sentence_passed else fix_value,
             )
         return PassResult()
+
+    def fix_passage(self, text: str) -> str:
+        """Given a passage of text, split it into sentences, evaluate each for bias,
+        then recombine them and return a new paragraph. May not preserve whitespace
+        between sentences."""
+        sentences = split_text_into_sentences(text, language='en')
+        scores = self._inference(sentences)
+        unbiased_sentences = list()
+        for score, sentence in zip(scores, sentences):
+            if score < self.threshold:
+                unbiased_sentences.append(sentence)
+        return "  ".join(unbiased_sentences)
+
+    # This normally will be called by _inference.
+    # Remote inference is unsupported for this model on account of the NER.
+    def _inference_local(self, sentences: List[str]) -> List[float]:  # type: ignore
+        scores = list()
+        predictions = self.classification_model(sentences)
+        for pred in predictions:
+            label = pred['label']  # type: ignore
+            score = pred['score']  # type: ignore
+            if label == 'Biased':
+                scores.append(score)
+            elif label == 'Non-biased':
+                scores.append(-score)
+            else:
+                # This should never happen:
+                raise Exception("Unexpected prediction label: {}".format(label))
+        return scores

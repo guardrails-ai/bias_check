@@ -1,17 +1,20 @@
 [project]
 name = "bias_check"
-version = "0.2.0"
+version = "0.3.0"
 description = "Wrapping a bias check model into a validator."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
 ]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">= 3.8.1"
+requires-python = ">= 3.9"
 dependencies = [
-    "guardrails-ai>=0.4.0",
-    "transformers>=4.40.2",
-    "tensorflow>=2.18.0"
+    "guardrails-ai>=0.5.15",
+    "transformers>=4.37.0",
+    "tf-keras",
+    "sentencepiece",
+    "tensorflow>=2.16.0",  # Required for the dbias model, but not as a direct dependency.
+    "sentence-splitter>=1.4"
 ]
 
 [project.optional-dependencies]
