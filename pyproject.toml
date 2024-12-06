@@ -1,6 +1,6 @@
 [project]
 name = "bias_check"
-version = "0.2.0"
+version = "0.3.0"
 description = "Wrapping a bias check model into a validator."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
