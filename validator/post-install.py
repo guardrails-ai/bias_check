@@ -1,4 +1,8 @@
-from validator import BiasCheck
+from transformers import pipeline
 print("post-install starting...")
-BiasCheck.prefetch_models()
+_ = pipeline(
+    'text-classification',
+    model="d4data/bias-detection-model",
+    tokenizer="d4data/bias-detection-model",
+)
 print("post-install complete!")

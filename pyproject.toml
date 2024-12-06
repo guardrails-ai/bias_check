@@ -12,10 +12,8 @@ dependencies = [
     "guardrails-ai>=0.5.15",
     "transformers>=4.37.0",
     "tf-keras",
-    "spacy[transformers]>=3.6.0",
-    "cached_path>=1.6.0",
     "sentencepiece",
-    "tensorflow>=2.16.0",
+    "tensorflow>=2.16.0",  # Required for the dbias model, but not as a direct dependency.
     "sentence-splitter>=1.4"
 ]
 

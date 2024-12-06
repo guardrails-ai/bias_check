@@ -1,10 +1,5 @@
-import os
-import re
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
-import spacy
-from cached_path import cached_path
 from guardrails.validator_base import (
     FailResult,
     PassResult,
@@ -15,14 +10,6 @@ from guardrails.validator_base import (
 from guardrails.types import OnFailAction
 from sentence_splitter import split_text_into_sentences
 from transformers import pipeline
-
-
-S3_SPACY_NLP_MODEL_PATH = "s3://guardrails-ai-public-read-only/bias_check/dbias_0_1_5_en_pipeline.tar.gz"
-
-MODEL_CACHE_DIR = os.environ.get(
-    "GUARDRAILS_MODEL_CACHE_PATH_OVERRIDE",
-    Path.home() / ".cache" / "guardrails_cache"
-)
 
 
 @register_validator(name="guardrails/bias_check", data_type="string")
@@ -45,7 +32,7 @@ class BiasCheck(Validator):
     def __init__(
         self,
         threshold: float = 0.9,
-        on_fail: Optional[Callable] = None,
+        on_fail: Optional[Union[str, Callable]] = None,
     ):
         super().__init__(on_fail=on_fail)
         valid_on_fail_operations = {"fix", "noop", "exception"}
@@ -55,35 +42,13 @@ class BiasCheck(Validator):
             )
         self.threshold = threshold
 
-        classification_model, bias_words_detector, masked_word_model = \
-            BiasCheck.prefetch_models()
-
         # There are some spurious loading complaints with TFDistilBert models.
         # See https://discuss.huggingface.co/t/message-some-layers-from-the-model-were-not-used/1972/7
-        self.classification_model = classification_model
-
-        # These are used for the 'fix' operation:
-        # In the original DBias implementation, all of the detected bias words would be
-        # substituted with [MASK] and then a brute-force substitution would be applied.
-        self.bias_words_detector = bias_words_detector
-        self.unmasker = masked_word_model
-
-    @staticmethod
-    def prefetch_models():
-        # Despite passing `from_tf=True,` into the pipeline, some versions of
-        # transformers will complain about loading from TF models. Using this wonky
-        # combination of TFAutoModel and tokenizer, we can get it to load.
-        classification_pipe = pipeline(
+        self.classification_model = pipeline(
             'text-classification',
             model="d4data/bias-detection-model",
             tokenizer="d4data/bias-detection-model",
         )
-        bias_words_detector = spacy.load(cached_path(
-            f"{S3_SPACY_NLP_MODEL_PATH}!dbias_0_1_5_en_pipeline",
-            cache_dir=MODEL_CACHE_DIR, extract_archive=True
-        ))
-        masked_word_model = pipeline('fill-mask', model='bert-base-cased')
-        return classification_pipe, bias_words_detector, masked_word_model
 
     def validate(
             self,
@@ -116,9 +81,10 @@ class BiasCheck(Validator):
             failure_message += "\n - ".join(failing_outputs)
             message_scores = [str(s) for s in failing_scores]
             failure_message += "\n (Message scores: {})".format(", ".join(message_scores))
-            # Four paths: noop, exception, fix, filter.
-            # self.on_fail_method == NOOP or FILTER, return only passing outputs.
-            # EXCEPTION is handled farther up the stack, which leaves us only 'fix'.
+            # Three paths: noop, exception, fix.
+            # on_fail == NOOP, return only passing passages.
+            # on_fail == FIX, split passages into sentences and drop sentences.
+            # EXCEPTION is handled farther up the stack.
             if self.on_fail_descriptor != OnFailAction.FIX:
                 fix_value = passing_outputs
             else:
@@ -127,16 +93,15 @@ class BiasCheck(Validator):
                     if not needs_fix:
                         fix_value.append(text)
                     else:
-                        # The 'text' is a full paragraph, actually.
-                        # Split it into sentences, evaluate each for bias, and join them
-                        fix_value.append(self.fix_paragraph(text))
+                        # The 'text' is a full document, passage, or paragraph.
+                        fix_value.append(self.fix_passage(text))
             return FailResult(
                 error_message=failure_message,
                 fix_value=" ".join(fix_value) if single_sentence_passed else fix_value,
             )
         return PassResult()
 
-    def fix_paragraph(self, text: str) -> str:
+    def fix_passage(self, text: str) -> str:
         """Given a passage of text, split it into sentences, evaluate each for bias,
         then recombine them and return a new paragraph. May not preserve whitespace
         between sentences."""
@@ -162,21 +127,3 @@ class BiasCheck(Validator):
                 # This should never happen:
                 raise Exception("Unexpected prediction label: {}".format(pred['label']))
         return scores
-
-
-def download_spacy_model():
-    # The '!dbias...' tells cached_path to return a reference to an unmangled path.
-    return cached_path(
-        f"{S3_SPACY_NLP_MODEL_PATH}!dbias_0_1_5_en_pipeline",
-        cache_dir=MODEL_CACHE_DIR, extract_archive=True
-    )
-
-
-def argmin_pair(scores, sentences):
-    min_score = float("inf")
-    min_text = ""
-    for score, text in zip(scores, sentences):
-        if score < min_score:
-            min_score = score
-            min_text = text
-    return min_score, min_text
