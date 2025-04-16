@@ -14,7 +14,8 @@ dependencies = [
     "tf-keras",
     "sentencepiece",
     "tensorflow>=2.16.0",  # Required for the dbias model, but not as a direct dependency.
-    "sentence-splitter>=1.4"
+    "sentence-splitter>=1.4",
+    "torch"
 ]
 
 [project.optional-dependencies]

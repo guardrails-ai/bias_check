@@ -1,4 +1,4 @@
-from transformers import pipeline
+from transformers.pipelines import pipeline
 print("post-install starting...")
 _ = pipeline(
     'text-classification',

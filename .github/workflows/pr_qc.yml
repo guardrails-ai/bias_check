@@ -16,4 +16,5 @@ jobs:
       - name: Run qa
         run: |
           pip install ".[dev]"
+          python validator/post-install.py
           make qa
