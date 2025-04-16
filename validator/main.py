@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from guardrails.validator_base import (
     FailResult,
@@ -32,14 +32,9 @@ class BiasCheck(Validator):
     def __init__(
         self,
         threshold: float = 0.9,
-        on_fail: Optional[Union[str, Callable]] = None,
+        **kwargs,
     ):
-        super().__init__(on_fail=on_fail)  # type: ignore
-        valid_on_fail_operations = {"fix", "noop", "exception"}
-        if isinstance(on_fail, str) and on_fail not in valid_on_fail_operations:
-            raise Exception(
-                f"on_fail value ({on_fail}) not in list of allowable operations: {valid_on_fail_operations}"
-            )
+        super().__init__(**kwargs)
         self.threshold = threshold
 
         # There are some spurious loading complaints with TFDistilBert models.
@@ -50,7 +45,10 @@ class BiasCheck(Validator):
             tokenizer="d4data/bias-detection-model",
         )
 
-    def validate(
+    def validate(self, value: Any, metadata: Dict[str, Any] = {}) -> ValidationResult:
+        return super().validate(value, metadata)
+
+    def _validate(
             self,
             value: Union[str, List[str]],
             metadata: Optional[Dict] = None
@@ -61,7 +59,7 @@ class BiasCheck(Validator):
             single_sentence_passed = True
             value = [value,]  # Ensure we're always passing lists of strings into the classifier.
 
-        scores = self._inference(value)
+        scores = self._inference_local(value)
         passing_outputs = list()
         passing_scores = list()
         failing_outputs = list()
