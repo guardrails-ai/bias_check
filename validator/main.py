@@ -104,7 +104,7 @@ class BiasCheck(Validator):
         then recombine them and return a new paragraph. May not preserve whitespace
         between sentences."""
         sentences = split_text_into_sentences(text, language='en')
-        scores = self._inference(sentences)
+        scores = self._inference_local(sentences)
         unbiased_sentences = list()
         for score, sentence in zip(scores, sentences):
             if score < self.threshold:
