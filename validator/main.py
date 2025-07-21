@@ -48,6 +48,9 @@ class BiasCheck(Validator):
             'text-classification',
             model="d4data/bias-detection-model",
             tokenizer="d4data/bias-detection-model",
+            framework="tf",
+            from_tf=True,
+            torch_dtype=None
         )
 
     def validate(
