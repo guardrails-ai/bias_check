@@ -32,6 +32,7 @@ class BiasCheck(Validator):
     def __init__(
         self,
         threshold: float = 0.9,
+        on_fail: Optional[Union[str, Callable]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
