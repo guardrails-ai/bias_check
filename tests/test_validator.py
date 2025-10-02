@@ -23,6 +23,6 @@ def test_failure_case():
 def test_sentence_fix():
     v = BiasCheck(on_fail='fix', threshold=0.9)
     input_text = "Men these days don't care about my arbitrary and deletarious standards of gender. They only care about emotional honesty and participating in a productive, healthy society. smh"
-    out = v.validate(input_text)
+    out = v.validate(input_text, {})
     assert isinstance(out, FailResult)
     assert out.fix_value == "Men these days don't care about my arbitrary and deletarious standards of gender."

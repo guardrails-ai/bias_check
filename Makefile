@@ -5,7 +5,7 @@ lint:
 	ruff check .
 
 test:
-	pytest ./tests
+	pytest tests/*
 
 type:
 	pyright validator
@@ -13,4 +13,4 @@ type:
 qa:
 	make lint
 	make type
-	make tests
+	make test

@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, TypedDict
 
 from guardrails.validator_base import (
     FailResult,
@@ -9,7 +9,7 @@ from guardrails.validator_base import (
 )
 from guardrails.types import OnFailAction
 from sentence_splitter import split_text_into_sentences
-from transformers import pipeline
+from transformers.pipelines import pipeline
 
 
 @register_validator(name="guardrails/bias_check", data_type="string")
@@ -32,14 +32,10 @@ class BiasCheck(Validator):
     def __init__(
         self,
         threshold: float = 0.9,
-        on_fail: Optional[Union[str, Callable]] = None,
+        on_fail: Optional[Union[Callable[[Any, FailResult], Any], OnFailAction]] = None,
+        **kwargs,
     ):
-        super().__init__(on_fail=on_fail)  # type: ignore
-        valid_on_fail_operations = {"fix", "noop", "exception"}
-        if isinstance(on_fail, str) and on_fail not in valid_on_fail_operations:
-            raise Exception(
-                f"on_fail value ({on_fail}) not in list of allowable operations: {valid_on_fail_operations}"
-            )
+        super().__init__(on_fail=on_fail, **kwargs)
         self.threshold = threshold
 
         # There are some spurious loading complaints with TFDistilBert models.
@@ -48,9 +44,15 @@ class BiasCheck(Validator):
             'text-classification',
             model="d4data/bias-detection-model",
             tokenizer="d4data/bias-detection-model",
+            framework="tf",
+            torch_dtype=None, # For transformers <4.56
+            dtype=None # For transformers >4.56
         )
 
-    def validate(
+    def validate(self, value: Any, metadata: Dict[str, Any] = {}) -> ValidationResult:
+        return super().validate(value, metadata)
+
+    def _validate(
             self,
             value: Union[str, List[str]],
             metadata: Optional[Dict] = None
@@ -61,7 +63,7 @@ class BiasCheck(Validator):
             single_sentence_passed = True
             value = [value,]  # Ensure we're always passing lists of strings into the classifier.
 
-        scores = self._inference(value)
+        scores = self._inference_local(value)
         passing_outputs = list()
         passing_scores = list()
         failing_outputs = list()
@@ -106,7 +108,7 @@ class BiasCheck(Validator):
         then recombine them and return a new paragraph. May not preserve whitespace
         between sentences."""
         sentences = split_text_into_sentences(text, language='en')
-        scores = self._inference(sentences)
+        scores = self._inference_local(sentences)
         unbiased_sentences = list()
         for score, sentence in zip(scores, sentences):
             if score < self.threshold:
@@ -117,10 +119,10 @@ class BiasCheck(Validator):
     # Remote inference is unsupported for this model on account of the NER.
     def _inference_local(self, sentences: List[str]) -> List[float]:  # type: ignore
         scores = list()
-        predictions = self.classification_model(sentences)
+        predictions: List[PipelinePrediction] = self.classification_model(sentences)  # type: ignore
         for pred in predictions:
-            label = pred['label']  # type: ignore
-            score = pred['score']  # type: ignore
+            label = pred['label']
+            score = pred['score']
             if label == 'Biased':
                 scores.append(score)
             elif label == 'Non-biased':
@@ -129,3 +131,8 @@ class BiasCheck(Validator):
                 # This should never happen:
                 raise Exception("Unexpected prediction label: {}".format(label))
         return scores
+
+# Define the type for pipeline predictions
+class PipelinePrediction(TypedDict):
+    label: str
+    score: float
