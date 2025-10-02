@@ -35,7 +35,7 @@ class BiasCheck(Validator):
         on_fail: Optional[Union[str, Callable]] = None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(on_fail=on_fail, **kwargs)
         self.threshold = threshold
 
         # There are some spurious loading complaints with TFDistilBert models.
