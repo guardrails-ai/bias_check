@@ -10,12 +10,11 @@ readme = "README.md"
 requires-python = ">= 3.9"
 dependencies = [
     "guardrails-ai>=0.5.15",
-    "transformers>=4.37.0",
+    "transformers>=4.37.0,<5.0",
     "tf-keras",
     "sentencepiece",
     "tensorflow>=2.16.0",  # Required for the dbias model, but not as a direct dependency.
-    "sentence-splitter>=1.4",
-    "torch"
+    "sentence-splitter>=1.4"
 ]
 
 [project.optional-dependencies]

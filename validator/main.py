@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Union, TypedDict
 
 from guardrails.validator_base import (
     FailResult,
@@ -32,7 +32,7 @@ class BiasCheck(Validator):
     def __init__(
         self,
         threshold: float = 0.9,
-        on_fail: Optional[Union[str, Callable]] = None,
+        on_fail: Optional[Union[Callable[[Any, FailResult], Any], OnFailAction]] = None,
         **kwargs,
     ):
         super().__init__(on_fail=on_fail, **kwargs)
@@ -45,8 +45,8 @@ class BiasCheck(Validator):
             model="d4data/bias-detection-model",
             tokenizer="d4data/bias-detection-model",
             framework="tf",
-            from_tf=True,
-            torch_dtype=None
+            torch_dtype=None, # For transformers <4.56
+            dtype=None # For transformers >4.56
         )
 
     def validate(self, value: Any, metadata: Dict[str, Any] = {}) -> ValidationResult:

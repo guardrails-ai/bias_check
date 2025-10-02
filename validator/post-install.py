@@ -5,7 +5,7 @@ _ = pipeline(
     model="d4data/bias-detection-model",
     tokenizer="d4data/bias-detection-model",
     framework="tf",
-    from_tf=True,
-    torch_dtype=None
+    torch_dtype=None, # For transformers <4.56
+    dtype=None # For transformers >4.56
 )
 print("post-install complete!")
